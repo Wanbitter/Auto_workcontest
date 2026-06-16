@@ -1,65 +1,102 @@
 """
-Word Document Parser for Exam Questions
-Simplified, robust parsing logic.
+Word Document Parser - classifies by answer text, not section headers.
 """
 import re
 from docx import Document
 from typing import List, Dict, Any
 
 def parse_docx(filepath: str) -> Dict[str, Any]:
+    """Parse a .docx file and extract questions."""
     doc = Document(filepath)
     lines = []
     for para in doc.paragraphs:
-        text = para.text
-        if text.strip():
-            for sub_line in text.split('\n'):
-                sub = sub_line.strip()
-                if sub:
-                    lines.append(sub)
+        for sub_line in para.text.split('\n'):
+            sub = sub_line.strip()
+            if sub:
+                lines.append(sub)
     return parse_questions(lines)
+
+
+def _extract_answer(text: str) -> str:
+    """Extract answer text aggressively."""
+    # Try all possible formats
+    m = re.search(r'(?:正确)?答案[：:]\s*([^\n。\s]+)', text)
+    if m:
+        ans = m.group(1).strip()
+        # Normalize: check if it's A-D letter, or checkmark/cross
+        letter = re.match(r'^([A-D])', ans.upper())
+        if letter:
+            return letter.group(1)
+        if ans in ['√', '×', '✓', '✗', '对', '错', '正确', '错误']:
+            return '正确' if ans in ['√', '✓', '对'] else '错误'
+        return ans
+    return ''
+
+
+def _classify(answer: str, lines: List[str]) -> str:
+    """Determine question type from answer text and content."""
+    # 1. Has options A/B/C/D → choice
+    has_opts = any(re.match(r'\s*[A-D][.、．）]\s', l) for l in lines[1:]) or \
+               any('A.' in l for l in lines[1:4])
+    if has_opts and not answer:
+        return 'choice'
+    
+    # 2. Answer is A/B/C/D letter → choice
+    if re.match(r'^[A-D]$', answer):
+        return 'choice'
+    
+    # 3. Answer is √/×/✓/✗/正确/错误/对/错 → true_false  
+    if answer in ['√', '×', '✓', '✗', '正确', '错误', '对', '错']:
+        return 'true_false'
+    
+    # 4. Has 答：line → fill_blank
+    if any(l.startswith('答') for l in lines):
+        return 'fill_blank'
+    
+    # 5. Has options → choice (even without answer)
+    if has_opts:
+        return 'choice'
+    
+    # 6. Default → fill_blank
+    return 'fill_blank'
 
 
 def parse_questions(lines: List[str]) -> Dict[str, Any]:
     questions = {"choice": [], "true_false": [], "fill_blank": []}
-    section_markers = {}
-    cn_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6}
-    for i, line in enumerate(lines):
-        m = re.match(r'^([一二三四五六七八九十]+)[、.．]', line)
-        if m:
-            n = cn_map.get(m.group(1), 0)
-            if n == 1: section_markers[i] = 'choice'
-            elif n == 2: section_markers[i] = 'true_false'
-            elif n >= 3: section_markers[i] = 'fill_blank'
+    
+    # Filter out header lines
     skip_set = {
         '考试类型：闭卷', '题型：', '单项选择题（30题，共30分）',
         '判断题（10题，共10分）', '简答题（4题，共24分）',
         '论述题（2题，共18分）', '材料分析题（1题，共18分）',
     }
-    current_section = None
+    
+    # Build raw question blocks (ignore section headers entirely)
     raw_blocks = []
     current_lines = []
-    for i, line in enumerate(lines):
-        if i in section_markers:
-            if current_lines:
-                raw_blocks.append((current_section, current_lines))
-            current_section = section_markers[i]
-            current_lines = []
-            continue
+    
+    for line in lines:
         if line in skip_set:
             continue
+        if re.match(r'^[一二三四五六七八九十]+[、.．]', line):
+            continue  # Skip section headers
         if re.match(r'^\d+\s*[.、．）]', line):
             if current_lines:
-                raw_blocks.append((current_section, current_lines))
+                raw_blocks.append(current_lines)
             current_lines = [line]
         else:
             if current_lines:
                 current_lines.append(line)
+    
     if current_lines:
-        raw_blocks.append((current_section, current_lines))
-    for section_type, block_lines in raw_blocks:
-        parsed = _parse_single(block_lines, section_type)
+        raw_blocks.append(current_lines)
+    
+    # Parse each block, classify by answer
+    for block_lines in raw_blocks:
+        parsed = _parse_single(block_lines)
         if parsed and parsed['type'] in questions:
             questions[parsed['type']].append(parsed)
+    
     return questions
 
 
@@ -73,45 +110,19 @@ def _split_inline(line: str) -> List[tuple]:
     return result
 
 
-def _extract_answer(text: str) -> str:
-    m = re.search(r'(?:正确)?答案[：:]\s*([^\n。\s]+)', text)
-    if m:
-        ans = m.group(1).strip()
-        if re.match(r'^[A-D]$', ans):
-            return ans
-        if ans in ['√', '×', '✓', '✗', '对', '错']:
-            return ans
-        letter = re.match(r'^([A-D])', ans)
-        if letter:
-            return letter.group(1)
-        return ans
-    for line in text.split('\n'):
-        if line.startswith('答：') or line.startswith('答:'):
-            return re.sub(r'^答[：:]\s*', '', line).strip()
-    return ''
-
-
-def _parse_single(lines: List[str], section_type: str) -> Dict[str, Any]:
+def _parse_single(lines: List[str]) -> Dict[str, Any]:
     if not lines:
         return None
+    
     first = lines[0]
     q_text = re.sub(r'^\d+\s*[.、．）]\s*', '', first).strip()
     if not q_text:
         return None
+    
     full = '\n'.join(lines)
     answer = _extract_answer(full)
-    qtype = section_type
-    if qtype is None:
-        opts = any(re.match(r'\s*[A-D][.、．）]\s', l) for l in lines[1:]) or \
-               any(re.match(r'\s*[A-D][.、．）]', l) for l in lines[1:4])
-        if opts:
-            qtype = 'choice'
-        elif answer in ['√', '×', '✓', '✗', '正确', '错误', '对', '错']:
-            qtype = 'true_false'
-        elif any(l.startswith('答') for l in lines):
-            qtype = 'fill_blank'
-        else:
-            qtype = 'fill_blank'
+    qtype = _classify(answer, lines)
+    
     if qtype == 'choice':
         options = {}
         for line in lines[1:]:
@@ -119,11 +130,14 @@ def _parse_single(lines: List[str], section_type: str) -> Dict[str, Any]:
                 continue
             m = re.match(r'\s*([A-D])[.、．）]\s*(.*)', line)
             if m:
-                letter = m.group(1)
-                rest = m.group(2).strip()
+                letter, rest = m.group(1), m.group(2).strip()
                 inline = _split_inline(rest)
                 if inline:
-                    options[letter] = rest[:rest.find(f'{inline[0][0]}.')].strip()
+                    cutoff = rest.find(f'{inline[0][0]}.')
+                    if cutoff > 0:
+                        options[letter] = rest[:cutoff].strip()
+                    else:
+                        options[letter] = rest
                     for l, t in inline:
                         options[l] = t
                 else:
@@ -133,20 +147,31 @@ def _parse_single(lines: List[str], section_type: str) -> Dict[str, Any]:
                 if inline:
                     for l, t in inline:
                         options[l] = t
+        
         if not options:
             return None
+        
         ans_clean = answer.strip().upper()
         m = re.match(r'^([A-D])', ans_clean)
         if m:
             ans_clean = m.group(1)
+        
         return {"type": "choice", "question": q_text, "options": options, "answer": ans_clean}
+    
     elif qtype == 'true_false':
         if answer in ['√', '✓', '对']: clean = '正确'
         elif answer in ['×', '✗', '错']: clean = '错误'
         else: clean = answer
         return {"type": "true_false", "question": q_text, "answer": clean}
+    
     else:
-        ans = re.sub(r'^答[：:]', '', answer).strip()
+        # fill_blank - get answer from 答： line
+        ans = ''
+        for line in lines:
+            s = line.strip()
+            if s.startswith('答：') or s.startswith('答:'):
+                ans = re.sub(r'^答[：:]\s*', '', s).strip()
+                break
         return {"type": "fill_blank", "question": q_text, "answer": ans}
 
 
