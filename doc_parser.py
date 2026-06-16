@@ -87,24 +87,43 @@ def _split_inline_options(line: str) -> List[tuple]:
 
 def _extract_answer(full_text: str) -> str:
     """Extract answer text from a question block. Handles multiple formats."""
-    # Pattern 1: "正确答案：X" or "答案：X"
+    # Priority 1: Explicit "正确答案：X" or "答案：X"
+    # Need to handle: "正确答案：C", "答案：B", "正确答案：C 答案解析：见教材P7"
     for pattern in [
-        r'正确[答案][：:]\s*([^\n]+?)(?:\s*$|\s*[答解]析|\s*见教材)',
-        r'答案[：:]\s*([^\n]+?)(?:\s*$|\s*[答解]析|\s*见教材)',
+        r'(?:正确)?答案[：:]\s*([^\n。]+?)(?:\s*(?:答案)?解析|\s*见教材|\s*参考教材|$)',
+        r'(?:正确)?答案[：:]\s*([A-D])',
+        r'(?:正确)?答案[：:]\s*([√×✓✗对错])',
     ]:
         m = re.search(pattern, full_text)
         if m:
             ans = m.group(1).strip()
-            # Remove trailing periods, spaces, tabs
+            # Clean up: remove trailing spaces/tabs, keep only first letter for choices
             ans = re.sub(r'[\s。.]+$', '', ans)
+            # If it's a choice answer like "C 答案解析：见教材", extract just "C"
+            letter = re.match(r'^([A-D])', ans)
+            if letter:
+                return letter.group(1)
+            if ans in ['√', '×', '✓', '✗', '对', '错', '正确', '错误']:
+                return ans
             if ans:
                 return ans
     
-    # Pattern 2: "答：xxx" line
+    # Priority 2: "答：xxx" on its own line
     for line in full_text.split('\n'):
-        if line.startswith('答：') or line.startswith('答:'):
-            ans = re.sub(r'^答[：:]\s*', '', line).strip()
-            return ans
+        stripped = line.strip()
+        if stripped.startswith('答：') or stripped.startswith('答:'):
+            ans = re.sub(r'^答[：:]\s*', '', stripped).strip()
+            if ans:
+                return ans
+    
+    # Priority 3: Any text after "参考答案" or "标准答案"
+    for pattern in [r'参考[答案][：:]\s*([^\n。]+)', r'标准[答案][：:]\s*([^\n。]+)']:
+        m = re.search(pattern, full_text)
+        if m:
+            ans = m.group(1).strip()
+            ans = re.sub(r'[\s。.]+$', '', ans)
+            if ans:
+                return ans
     
     return ''
 
