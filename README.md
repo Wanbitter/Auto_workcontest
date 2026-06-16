@@ -6,13 +6,26 @@
 
 ---
 
+## 📋 目录
+
+- [✨ 功能特点](#-功能特点)
+- [🚀 使用方法](#-使用方法)
+  - [方法一：下载 exe（推荐）](#方法一下载可执行文件推荐无需安装-python)
+  - [方法二：源码运行](#方法二从源代码运行需要-python-环境)
+- [📁 项目结构](#-项目结构)
+- [📄 文档格式要求](#-文档格式要求)
+- [⚙️ 技术栈](#-技术栈)
+- [📝 协议](#-协议)
+
+---
+
 ## ✨ 功能特点
 
 - 📄 **上传 Word 文档**（支持 .doc 和 .docx）自动识别题目
 - 🎯 **三种题型识别**：选择题、判断题、填空题/简答题
 - 🔀 **两种测试模式**：全测试 / 部分测试（自定义各题型数量）
 - 📑 **两种顺序**：原文顺序 / 随机乱序（按题型分组，不混题）
-- 📋 **侧边题号面板**：按 Tab 键呼出，点击题号跳转
+- 📋 **侧边题号面板**：按 `Tab` 键呼出，点击题号跳转
 - ✅ **即时判题**：
   - 选择/判断正确 → 显示 **AC** → 1秒自动跳下一题
   - 选择/判断错误 → 显示 **WA** + 正确答案
@@ -24,21 +37,22 @@
 
 ## 🚀 使用方法
 
-### 方法一：直接下载可执行文件（推荐，无需安装 Python）
+### 方法一：下载可执行文件（推荐，无需安装 Python）
 
-1. 前往 **[Releases](https://github.com/Wanbitter/Auto_workcontest/releases)** 页面
-2. 下载最新版本的 `智能题库测试系统.zip`
-3. 解压到任意文件夹
-4. 双击 **`启动.exe`**，自动打开浏览器使用
+1. 前往本仓库的 **[Releases 页面](https://github.com/Wanbitter/Auto_workcontest/releases)** 下载最新版本
+2. 解压到任意文件夹
+3. 双击 **`启动.exe`**，自动打开浏览器使用
 
-> ⚠️ 如果被杀毒软件拦截，请添加信任。因为这是用 PyInstaller 打包的独立 exe。
+> ⚠️ 如果被杀毒软件拦截，请添加信任（PyInstaller 打包的单文件 exe 可能会有误报）
+
+[↑ 返回目录](#-目录)
 
 ### 方法二：从源代码运行（需要 Python 环境）
 
 #### 环境要求
 
 - Python 3.8+
-- Windows 系统（因为使用了 pywin32 转换 .doc 文件）
+- Windows 系统（需要安装 Microsoft Word 以支持 .doc 格式转换）
 
 #### 安装步骤
 
@@ -54,11 +68,15 @@ pip install flask python-docx pywin32
 python app.py
 ```
 
-然后打开浏览器访问 http://127.0.0.1:5000
+然后打开浏览器访问 [http://127.0.0.1:5000](http://127.0.0.1:5000)
 
 #### 一键启动（Windows）
 
 直接双击 **`start.bat`** 即可，会自动启动服务并打开浏览器。
+
+> 💡 也可以直接打开 `auto_workcontest` 文件夹，找到 `start.bat` 双击运行
+
+[↑ 返回目录](#-目录)
 
 ---
 
@@ -70,12 +88,19 @@ Auto_workcontest/
 ├── doc_parser.py       # 文档解析器
 ├── convert_doc.py      # .doc → .docx 转换
 ├── start.bat           # 一键启动脚本
+├── start.vbs           # 静默启动脚本
+├── requirements.txt    # Python 依赖
+├── README.md           # 本说明文档
 ├── templates/
 │   └── index.html      # 前端页面
 └── static/
-    ├── css/style.css   # 样式
-    └── js/main.js      # 前端交互
+    ├── css/
+    │   └── style.css   # 样式文件
+    └── js/
+        └── main.js     # 前端交互逻辑
 ```
+
+[↑ 返回目录](#-目录)
 
 ---
 
@@ -105,17 +130,27 @@ D. 选项D
 答：答案内容
 ```
 
+[↑ 返回目录](#-目录)
+
 ---
 
 ## ⚙️ 技术栈
 
-- **后端**: Python Flask
+- **后端**: [Python Flask](https://flask.palletsprojects.com/)
 - **前端**: 原生 HTML + CSS + JavaScript
-- **文档解析**: python-docx
-- **格式转换**: pywin32 (调用 Word COM)
+- **文档解析**: [python-docx](https://python-docx.readthedocs.io/)
+- **格式转换**: pywin32 (调用 Microsoft Word COM)
+
+[↑ 返回目录](#-目录)
 
 ---
 
 ## 📝 协议
 
 本项目仅供学习交流使用。
+
+---
+
+> 📌 **项目地址**: [https://github.com/Wanbitter/Auto_workcontest](https://github.com/Wanbitter/Auto_workcontest)
+>
+> 如果你觉得这个工具有用，欢迎 ⭐ Star 支持！
