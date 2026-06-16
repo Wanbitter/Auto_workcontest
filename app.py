@@ -83,7 +83,34 @@ def upload_file():
         parse_path = filepath
         is_doc = ext.lower() == '.doc'
         if is_doc:
-            parse_path = convert_doc_to_docx(filepath)
+            # Try to find any existing .docx with same base content
+            all_docx = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                       if f.endswith('.docx') and f.startswith(name)]
+            if all_docx:
+                # Use the first matching .docx
+                parse_path = os.path.join(app.config['UPLOAD_FOLDER'], all_docx[0])
+            else:
+                # Try COM conversion with proper COM init
+                try:
+                    pythoncom.CoInitialize()
+                    word = win32com.client.Dispatch('Word.Application')
+                    word.Visible = False
+                    word.DisplayAlerts = False
+                    docx_path = os.path.splitext(filepath)[0] + '.docx'
+                    doc = word.Documents.Open(os.path.abspath(filepath))
+                    doc.SaveAs(os.path.abspath(docx_path), FileFormat=16)
+                    doc.Close()
+                    word.Quit()
+                    parse_path = docx_path
+                except Exception as conv_err:
+                    print(f'[警告] .doc转换失败: {conv_err}')
+                    # Show helpful error
+                    return jsonify({'error': '无法转换 .doc 文件。请尝试以下方法：\n'
+                                            '1. 在Word中另存为 .docx 格式再上传\n'
+                                            '2. 或直接上传 .docx 文件'}), 400
+                finally:
+                    try: pythoncom.CoUninitialize()
+                    except: pass
         
         questions = parse_docx(parse_path)
         
