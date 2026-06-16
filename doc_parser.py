@@ -172,10 +172,17 @@ def _parse_block(lines: List[str], inferred_type: str) -> Dict[str, Any]:
                 # Check if text contains more options (inline format)
                 inline_parts = _split_inline_options(text)
                 if inline_parts:
+                    # The first letter's text is everything BEFORE the next option
+                    next_opt = inline_parts[0][0]
+                    # Find where "next_opt." starts in the original text
+                    cutoff = text.find(f'{next_opt}.')
+                    if cutoff > 0:
+                        # A's text = everything before the next option
+                        options[letter] = text[:cutoff].strip()
+                    else:
+                        options[letter] = text
                     for l, t in inline_parts:
                         options[l] = t
-                else:
-                    options[letter] = text
             else:
                 # Try inline at beginning of line
                 inline_parts = _split_inline_options(line)
