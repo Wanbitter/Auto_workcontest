@@ -246,9 +246,9 @@ if __name__ == '__main__':
     
     threading.Thread(target=open_browser, daemon=True).start()
     
-    print(f'📝 智能题库测试系统已启动')
-    print(f'🌐 请访问: http://127.0.0.1:5000')
-    print(f'📁 上传目录: {upload_dir}')
+    print('[智能题库测试系统已启动]')
+    print('[请访问] http://127.0.0.1:5000')
+    print(f'[上传目录] {upload_dir}')
     print()
     
     app.run(debug=False, host='0.0.0.0', port=5000)

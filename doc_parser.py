@@ -1,6 +1,6 @@
 """
 Word Document Parser for Exam Questions
-Matched to the MaoGai exam document format.
+Improved answer extraction and question parsing.
 """
 
 import re
@@ -20,12 +20,12 @@ def parse_docx(filepath: str) -> Dict[str, Any]:
 def parse_questions(lines: List[str]) -> Dict[str, Any]:
     questions = {"choice": [], "true_false": [], "fill_blank": []}
 
-    # Map section headers to types
+    # Map section headers to types using Chinese numerals
     section_map = {}
+    num_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8}
     for i, line in enumerate(lines):
         m = re.match(r'^([一二三四五六七八九十]+)[、.．]', line)
         if m:
-            num_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6}
             n = num_map.get(m.group(1), 0)
             if n == 1: section_map[i] = 'choice'
             elif n == 2: section_map[i] = 'true_false'
@@ -58,6 +58,9 @@ def parse_questions(lines: List[str]) -> Dict[str, Any]:
         else:
             if current_block:
                 current_block.append(line)
+            elif line and not current_block:
+                # Orphan lines before first question - skip
+                pass
 
     if current_block:
         q_blocks.append((current_block, current_type))
@@ -73,7 +76,6 @@ def parse_questions(lines: List[str]) -> Dict[str, Any]:
 
 def _split_inline_options(line: str) -> List[tuple]:
     """Split a line like 'A.xxx B.yyy C.zzz D.www' into individual options."""
-    # Match patterns like A.xxx or A.xxx where xxx may contain Chinese/parentheses
     parts = re.split(r'\s+(?=[A-D][.、．）])', line)
     result = []
     for part in parts:
@@ -81,6 +83,30 @@ def _split_inline_options(line: str) -> List[tuple]:
         if m:
             result.append((m.group(1), m.group(2).strip()))
     return result
+
+
+def _extract_answer(full_text: str) -> str:
+    """Extract answer text from a question block. Handles multiple formats."""
+    # Pattern 1: "正确答案：X" or "答案：X"
+    for pattern in [
+        r'正确[答案][：:]\s*([^\n]+?)(?:\s*$|\s*[答解]析|\s*见教材)',
+        r'答案[：:]\s*([^\n]+?)(?:\s*$|\s*[答解]析|\s*见教材)',
+    ]:
+        m = re.search(pattern, full_text)
+        if m:
+            ans = m.group(1).strip()
+            # Remove trailing periods, spaces, tabs
+            ans = re.sub(r'[\s。.]+$', '', ans)
+            if ans:
+                return ans
+    
+    # Pattern 2: "答：xxx" line
+    for line in full_text.split('\n'):
+        if line.startswith('答：') or line.startswith('答:'):
+            ans = re.sub(r'^答[：:]\s*', '', line).strip()
+            return ans
+    
+    return ''
 
 
 def _parse_block(lines: List[str], inferred_type: str) -> Dict[str, Any]:
@@ -95,12 +121,7 @@ def _parse_block(lines: List[str], inferred_type: str) -> Dict[str, Any]:
     full_text = '\n'.join(lines)
 
     # Extract answer
-    answer = ''
-    ans_match = re.search(r'(?:正确)?答案[：:]\s*([^\n。]+)', full_text)
-    if ans_match:
-        answer = ans_match.group(1).strip()
-        # Clean trailing spaces/tabs
-        answer = re.sub(r'\s+$', '', answer)
+    answer = _extract_answer(full_text)
 
     # Determine type
     qtype = inferred_type
@@ -109,7 +130,7 @@ def _parse_block(lines: List[str], inferred_type: str) -> Dict[str, Any]:
                       any('A.' in line for line in lines[1:4])
         if has_options:
             qtype = 'choice'
-        elif answer in ['√', '×', '正确', '错误', '对', '错']:
+        elif answer in ['√', '×', '✓', '✗', '正确', '错误', '对', '错']:
             qtype = 'true_false'
         elif any(line.startswith('答') for line in lines):
             qtype = 'fill_blank'
@@ -117,12 +138,13 @@ def _parse_block(lines: List[str], inferred_type: str) -> Dict[str, Any]:
             qtype = 'fill_blank'
 
     if qtype == 'choice':
-        # Parse options - try each line first for single options, then inline
+        # Parse options
         options = {}
         for line in lines[1:]:
-            # Skip answer/analysis lines
-            if line.startswith('正确答案') or line.startswith('答案') or line.startswith('答案解析'):
+            # Skip answer/analysis/reference lines
+            if line.startswith(('正确答案', '答案', '答案解析', '参考教材', '见教材')):
                 continue
+            
             # Try individual A. B. C. D. format
             opt_match = re.match(r'\s*([A-D])[.、．）]\s*(.*)', line)
             if opt_match:
@@ -145,32 +167,36 @@ def _parse_block(lines: List[str], inferred_type: str) -> Dict[str, Any]:
         if not options:
             return None
 
+        # Clean the answer - should be a single letter like "A", "B", "C", "D"
+        clean_answer = answer.strip().upper()
+        # If answer contains letters like "A", "B", "C", "D" followed by other stuff, take first letter
+        m = re.match(r'^([A-D])', clean_answer)
+        if m:
+            clean_answer = m.group(1)
+
         return {
             "type": "choice",
             "question": q_text,
             "options": options,
-            "answer": answer.strip()
+            "answer": clean_answer
         }
 
     elif qtype == 'true_false':
-        if answer in ['√', '对']: clean = '正确'
-        elif answer in ['×', '错']: clean = '错误'
-        else: clean = answer
+        # Normalize answer
+        ans_clean = answer.strip()
+        if ans_clean in ['√', '✓', '对', '正确']:
+            clean = '正确'
+        elif ans_clean in ['×', '✗', '错', '错误']:
+            clean = '错误'
+        else:
+            clean = ans_clean
         return {"type": "true_false", "question": q_text, "answer": clean}
 
     else:  # fill_blank
-        # Find answer starting with "答："
-        ans_content = ''
-        answer_found = False
-        for line in lines:
-            if line.startswith('答：') or line.startswith('答:'):
-                ans_content = re.sub(r'^答[：:]\s*', '', line).strip()
-                answer_found = True
-                break
-        
-        # If not found, try "答案" label
-        if not answer_found and answer:
-            ans_content = re.sub(r'^答[：:]', '', answer).strip()
+        # Answer already extracted from 答： line
+        ans_content = answer
+        # Remove "答：" prefix if it's still there
+        ans_content = re.sub(r'^答[：:]', '', ans_content).strip()
         
         return {"type": "fill_blank", "question": q_text, "answer": ans_content}
 
