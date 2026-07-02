@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能题库测试系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>📝 智能题库测试系统</h1>
+            <p class="subtitle">上传 Word 文档，自动识别题目并生成测试</p>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Upload Section -->
+            <section class="card upload-section" id="uploadSection">
+                <h2>📄 导入文档</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📂</div>
+                    <p>将 Word 文档拖拽到此处，或点击选择文件</p>
+                    <p class="upload-hint">支持 .doc 和 .docx 格式</p>
+                    <input type="file" id="fileInput" accept=".doc,.docx" hidden>
+                    <button class="btn btn-primary" id="selectFileBtn">选择文件</button>
+                </div>
+                <div class="upload-progress" id="uploadProgress" style="display:none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="uploadStatus">正在解析文档...</p>
+                </div>
+            </section>
+
+            <!-- Document List Section -->
+            <section class="card doc-list-section" id="docListSection">
+                <h2>📚 已导入文档</h2>
+                <div id="docList">
+                    <p class="empty-hint">暂无导入的文档，请先上传</p>
+                </div>
+            </section>
+
+            <!-- Test Configuration Section -->
+            <section class="card config-section" id="configSection" style="display:none;">
+                <h2>⚙️ 测试设置</h2>
+                <div id="configContent">
+                    <!-- Filled by JS -->
+                </div>
+            </section>
+
+            <!-- Exam Section -->
+            <section class="card exam-section" id="examSection" style="display:none;">
+                <h2>📝 测试中</h2>
+                <div id="examContent">
+                    <!-- Filled by JS -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>本app基于python-flask开发的智能文本题库系统</p>
+            <p>方便各位拿到文本类题库时方便自测</p>
+            <p class="footer-author">作者Wanbitter</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
